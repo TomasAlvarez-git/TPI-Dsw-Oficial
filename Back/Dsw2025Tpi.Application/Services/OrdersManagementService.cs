@@ -1,0 +1,309 @@
+﻿using Dsw2025Tpi.Application.Dtos;
+using Dsw2025Tpi.Application.Exceptions;
+using Dsw2025Tpi.Application.Helpers;
+using Dsw2025Tpi.Application.Interfaces;
+using Dsw2025Tpi.Domain.Entities;
+using Dsw2025Tpi.Domain.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Text;
+using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+
+namespace Dsw2025Tpi.Application.Services
+{
+    public class OrdersManagementService: IOrdersManagementService
+    {
+        private readonly IRepository _repository;
+        private readonly ILogger<OrdersManagementService> _logger;
+        private readonly OrdersManagementServiceExtensions _extensions;
+
+        // Constructor que inyecta el repositorio, el logger y las extensiones
+        public OrdersManagementService(IRepository repository, ILogger<OrdersManagementService> logger,
+            OrdersManagementServiceExtensions extensions)
+        {
+            _repository = repository;
+            _logger = logger;
+            _extensions = extensions;
+        }
+
+        // Crea una nueva orden con los productos y datos del cliente
+        // Asegúrate de tener este using para usar 'ClaimTypes' si fuera necesario, 
+// aunque aquí solo pasamos el string.
+
+public async Task<OrderModel.Response> AddOrder(OrderModel.Request request, string userEmail, string userName)
+{
+    // 1. LÓGICA DE VINCULACIÓN DE CLIENTE
+    var customersList = await _repository.GetFiltered<Customer>(c => c.Email == userEmail);
+    var existingCustomer = customersList.FirstOrDefault();
+
+    Guid finalCustomerId;
+
+    if (existingCustomer != null)
+    {
+        // CASO A: El cliente ya existe.
+        finalCustomerId = existingCustomer.Id;
+
+        // --- LÓGICA NUEVA: ACTUALIZAR EL NOMBRE SI ES DIFERENTE ---
+        // Esto arregla el problema de que te salga el email en vez del nombre si el usuario ya existía.
+        if (existingCustomer.Name != userName && !string.IsNullOrEmpty(userName))
+        {
+            existingCustomer.Name = userName;
+            await _repository.Update(existingCustomer); // Actualizamos en la BD
+            _logger.LogInformation("Nombre del cliente actualizado de '{OldName}' a '{NewName}'", existingCustomer.Name, userName);
+        }
+    }
+    else
+    {
+        // CASO B: Es la primera vez que compra.
+        var newCustomer = new Customer
+        {
+            Id = Guid.NewGuid(),
+            Email = userEmail,
+            Name = userName,      // Guardamos el nombre correcto desde el principio
+            UserEmail = userEmail 
+        };
+
+        await _repository.Add(newCustomer);
+        finalCustomerId = newCustomer.Id;
+        _logger.LogInformation("Nuevo Customer creado automáticamente para: {Email}", userEmail);
+    }
+
+    // 2. ACTUALIZAMOS EL REQUEST CON EL ID REAL
+    var modifiedRequest = request with { CustomerId = finalCustomerId };
+
+    // -----------------------------------------------------------------------
+    // VALIDACIONES
+    // -----------------------------------------------------------------------
+
+    // Comentamos la validación del ID (sigue comentada como debe ser)
+    // await _extensions.ValidateIdCustomerAsync(modifiedRequest); 
+
+    _logger.LogInformation("Iniciando creación de orden para cliente {CustomerId}", finalCustomerId);
+
+    _extensions.ValidateOrderRequest(modifiedRequest);
+    _extensions.ValidateEmptyProducts(modifiedRequest);
+    await _extensions.ValidateStockAvailabilityAsync(modifiedRequest);
+
+    // 3. PROCESAR ITEMS Y STOCK
+    var productsList = await _extensions.ValidateProductsInListAsync(modifiedRequest);
+    var products = productsList.ToDictionary(p => p.Id);
+
+    var orderItems = modifiedRequest.OrderItems.Select(i =>
+    {
+        var product = products[i.ProductId];
+        return new OrderItem(product, product.Id, i.Quantity, product.CurrentPrice);
+    }).ToList();
+
+    foreach (var item in orderItems)
+    {
+        var product = products[item.ProductId];
+        product.StockQuantity -= item.Quantity;
+        await _repository.Update(product);
+    }
+
+    var fecLocArg = _extensions.GetDateArgentinean();
+    
+    // 4. CREAR LA ORDEN
+    var order = new Order(finalCustomerId, modifiedRequest.ShippingAddress, modifiedRequest.BillingAddress, orderItems)
+    {
+        Date = fecLocArg
+    };
+
+    await _repository.Add(order);
+    _logger.LogInformation("Orden creada exitosamente con ID: {OrderId}", order.Id);
+
+    // 5. MAPEO DE RESPUESTA
+    var response = new OrderModel.Response(
+        Id: order.Id,
+        CustomerId: order.CustomerId ?? Guid.Empty,
+        // Usamos el nombre del objeto (que ya debería estar actualizado o creado bien)
+        CustomerName: existingCustomer?.Name ?? userName, 
+        ShippingAddress: order.ShippingAddress,
+        BillingAddress: order.BillingAddress,
+        Date: order.Date,
+        TotalAmount: order.TotalAmount,
+        Status: order.Status.ToString(),
+        OrderItems: order.Items.Select(oi =>
+        {
+            var product = products[oi.ProductId];
+            return new OrderItemModel.Response(
+                ProductId: oi.ProductId,
+                Name: product.Name ?? string.Empty,
+                Description: product.Description ?? string.Empty,
+                UnitPrice: oi.UnitPrice,
+                Quantity: oi.Quantity,
+                Subtotal: oi.Subtotal
+            );
+        }).ToList()
+    );
+
+    return response;
+}
+        // Devuelve una lista paginada de órdenes filtradas por estado y cliente
+        public async Task<OrderModel.ResponsePagination> GetOrders(OrderStatus? status, Guid? customerId, int pageNumber, int pageSize)
+        {
+            _logger.LogInformation("Obteniendo órdenes. Filtros - Estado: {Status}, Cliente: {CustomerId}, Página: {Page}, Tamaño: {Size}",
+                status?.ToString() ?? "Todos", customerId?.ToString() ?? "Todos", pageNumber, pageSize);
+
+            Expression<Func<Order, bool>> filter = o =>
+                (!status.HasValue || o.Status == status.Value) &&
+                (!customerId.HasValue || o.CustomerId == customerId.Value);
+
+            // 1. Obtener TODOS los resultados que coinciden con el filtro
+            var allOrders = await _repository.GetFiltered<Order>(filter, "Items" , "Customer");
+
+            if (allOrders == null || !allOrders.Any())
+            {
+                _logger.LogInformation("No se encontraron órdenes con los filtros aplicados.");
+                // Retornamos lista vacía y total 0
+                return new OrderModel.ResponsePagination(new List<OrderModel.Response>(), 0);
+            }
+
+            // 2. Calcular el Total de registros (antes de paginar)
+            var totalRecords = allOrders.Count();
+
+            // 3. Validar Paginación (Evitar saltos negativos)
+            var page = pageNumber < 1 ? 1 : pageNumber;
+            var size = pageSize < 1 ? 10 : pageSize;
+
+            // 4. Aplicar Paginación
+            var pagedOrders = allOrders
+                .OrderByDescending(o => o.Date) // Es buena práctica ordenar por fecha descendente
+                .Skip((page - 1) * size)
+                .Take(size)
+                .ToList();
+
+            _logger.LogInformation("Se encontraron {Count} órdenes en la página {Page}", pagedOrders.Count, page);
+
+            // 5. Obtener productos relacionados (para mapear nombres, etc.)
+            var productIds = pagedOrders
+                .SelectMany(o => o.Items)
+                .Select(i => i.ProductId)
+                .Distinct()
+                .ToList();
+
+            var productsList = await _repository.GetFiltered<Product>(p => productIds.Contains(p.Id));
+            var products = productsList?.ToDictionary(p => p.Id);
+
+            // 6. Mapear a DTO
+            var responseList = pagedOrders.Select(order => new OrderModel.Response(
+                Id: order.Id,
+                CustomerId: order.CustomerId ?? Guid.Empty,
+                CustomerName: order.Customer?.Name ?? "Cliente Desconocido",
+                ShippingAddress: order.ShippingAddress,
+                BillingAddress: order.BillingAddress,
+                Date: order.Date,
+                TotalAmount: order.TotalAmount,
+                Status: order.Status.ToString(),
+                OrderItems: order.Items.Select(oi =>
+                {
+                    var product = products.GetValueOrDefault(oi.ProductId);
+                    return new OrderItemModel.Response(
+                        ProductId: oi.ProductId,
+                        Name: product?.Name ?? string.Empty,
+                        Description: product?.Description ?? string.Empty,
+                        UnitPrice: oi.UnitPrice,
+                        Quantity: oi.Quantity,
+                        Subtotal: oi.Subtotal
+                    );
+                }).ToList()
+            )).ToList();
+
+            // 7. Retornar objeto con lista y total
+            return new OrderModel.ResponsePagination(responseList, totalRecords);
+        }
+
+        // Devuelve una orden específica por su ID, incluyendo ítems y productos
+        public async Task<Order?> GetOrderById(Guid Id)
+        {
+            _logger.LogInformation("Buscando orden por ID: {Id}", Id);
+
+            var orders = await _repository.GetFiltered<Order>(
+                o => o.Id == Id,
+                include: new[] { "Items", "Items.Product" }
+            );
+
+            var order =  _extensions.ValidateOrderNull(Id, orders);
+
+            _logger.LogInformation("Orden encontrada con ID: {Id}", Id);
+            return order;
+        }
+
+        // Actualiza el estado de una orden si es válido y diferente del actual
+        public async Task<OrderModel.Response?> UpdateOrderStatus(Guid id, string newStatusText)
+        {
+            _logger.LogInformation("Actualizando estado de la orden {Id} a '{NewStatus}'", id, newStatusText);
+            var newStatusTextUpper = newStatusText.ToUpper();
+
+            var order = await _repository.GetById<Order>(id, "Items");
+            if (order == null)
+            {
+                _logger.LogWarning("No se encontró la orden con ID: {Id} para actualizar estado", id);
+                throw new NotFoundException("La orden solicitada no existe");
+            }
+
+            // Validación: el estado no debe ser numérico
+            if (int.TryParse(newStatusTextUpper, out _))
+            {
+                _logger.LogWarning("Estado inválido (numérico) para la orden: '{NewStatus}'", newStatusTextUpper);
+                throw new BadRequestException("No se permite ingresar un número como estado. Usá uno de los siguientes: PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELED.");
+            }
+
+            // Validación contra el enum OrderStatus
+            if (!Enum.TryParse<OrderStatus>(newStatusTextUpper, true, out var newStatus) ||
+                !Enum.GetNames(typeof(OrderStatus)).Contains(newStatus.ToString()))
+            {
+                _logger.LogWarning("Estado inválido: '{NewStatus}' no es parte del enum OrderStatus", newStatusTextUpper);
+                throw new BadRequestException("Estado de orden inválido. Usá uno de los siguientes: PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELED.");
+            }
+
+            // Aplica el cambio de estado si corresponde
+            if (order.Status != newStatus)
+            {
+                order.Status = newStatus;
+                await _repository.Update(order);
+                _logger.LogInformation("Estado de orden actualizado correctamente a: {NewStatus}", newStatus);
+            }
+            else
+            {
+                _logger.LogInformation("El estado de la orden ya es: {NewStatus}, no se realizaron cambios.", newStatus);
+            }
+
+            // Carga productos para completar los datos de los ítems en la respuesta
+            var productIds = order.Items.Select(i => i.ProductId).Distinct().ToList();
+            var productsList = await _repository.GetFiltered<Product>(p => productIds.Contains(p.Id));
+            var products = productsList?.ToDictionary(p => p.Id);
+
+            return new OrderModel.Response(
+                Id: order.Id,
+                CustomerId: order.CustomerId ?? Guid.Empty,
+                CustomerName: order.Customer?.Name ?? "Cliente Desconocido",
+                ShippingAddress: order.ShippingAddress,
+                BillingAddress: order.BillingAddress,
+                Date: order.Date,
+                TotalAmount: order.TotalAmount,
+                Status: order.Status.ToString(),
+                OrderItems: order.Items.Select(oi =>
+                {
+                    var product = products.GetValueOrDefault(oi.ProductId);
+                    return new OrderItemModel.Response(
+                        ProductId: oi.ProductId,
+                        Name: product?.Name ?? string.Empty,
+                        Description: product?.Description ?? string.Empty,
+                        UnitPrice: oi.UnitPrice,
+                        Quantity: oi.Quantity,
+                        Subtotal: oi.Subtotal
+                    );
+                }).ToList()
+            );
+        }
+    }
+}
+
+

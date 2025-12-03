@@ -1,0 +1,8 @@
+export const orderStatus = {
+  ALL: '',
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  CANCELED: 'CANCELED',
+};
