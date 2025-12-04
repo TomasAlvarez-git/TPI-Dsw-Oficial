@@ -1,20 +1,16 @@
 import { Navigate } from 'react-router-dom';
 
-/**
- * Componente para proteger rutas.
- * Verifica la existencia del token y si el rol es 'admin'.
- * Redirige al login si no se cumplen las condiciones.
- */
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   const role = localStorage.getItem('role');
 
-  // Verificar autenticación básica
+  // 1. Si no hay token, al login
   if (!token) return <Navigate to="/login" replace />;
 
-  // Verificar autorización basada en roles
-  if (role !== 'admin') return <Navigate to="/login" replace />;
+  // 2. Si hay token, pero NO es admin, al Home (Prohibido)
+  if (role !== 'admin') return <Navigate to="/" replace />;
 
+  // 3. Si es admin, pasa
   return children;
 };
 

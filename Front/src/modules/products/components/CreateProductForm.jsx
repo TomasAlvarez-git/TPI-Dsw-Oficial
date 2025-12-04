@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import Button from '../../shared/components/Button';
@@ -5,8 +6,6 @@ import Card from '../../shared/components/Card';
 import Input from '../../shared/components/Input';
 import Toast from '../../shared/components/Toast';
 import { createProduct } from '../services/create';
-import { useState } from 'react';
-import { frontendErrorMessage } from '../../auth/helpers/backendError';
 
 function CreateProductForm() {
   const {
@@ -30,10 +29,13 @@ function CreateProductForm() {
   const navigate = useNavigate();
 
   const onValid = async (formData) => {
+    // Limpiamos errores previos al intentar enviar de nuevo
+    setErrorBackendMessage('');
+
     try {
       await createProduct(formData);
 
-      // Mostrar toast
+      // Mostrar toast de éxito
       setShowToast(true);
 
       // Redirigir después de 1 segundo
@@ -42,12 +44,12 @@ function CreateProductForm() {
       }, 1000);
 
     } catch (error) {
-      if (error.response?.data?.detail) {
-        const errorMessage = frontendErrorMessage[error.response.data.code];
+      console.log('Error del backend:', error.response);
 
-        setErrorBackendMessage(errorMessage);
+      if (error.response?.data?.message) {
+        setErrorBackendMessage(error.response.data.message);
       } else {
-        setErrorBackendMessage('Contactar a Soporte');
+        setErrorBackendMessage('Ocurrió un error inesperado. Contactar a Soporte.');
       }
     }
   };
@@ -74,7 +76,6 @@ function CreateProductForm() {
                 value: /^SKU-\d{4}$/i,
                 message: 'SKU Inválido (Ej: SKU-1000)',
               },
-
               onChange: (e) => {
                 e.target.value = e.target.value.toUpperCase();
               },
@@ -136,7 +137,9 @@ function CreateProductForm() {
           </div>
 
           {errorBackendMessage && (
-            <span className='text-red-500'>{errorBackendMessage}</span>
+            <div className='mt-4 text-center sm:text-end'>
+               <span className='text-red-500 font-medium'>{errorBackendMessage}</span>
+            </div>
           )}
         </form>
       </Card>

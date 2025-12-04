@@ -49,7 +49,6 @@ namespace Dsw2025Tpi.Application.Services
         }
 
         // Obtiene la lista de todos los productos existentes
-        // ... imports existentes ...
 
         public async Task<ProductModel.ResponsePagination?> GetProducts(ProductModel.FilterProduct filter)
         {

@@ -50,7 +50,6 @@ public async Task<OrderModel.Response> AddOrder(OrderModel.Request request, stri
         finalCustomerId = existingCustomer.Id;
 
         // --- LÓGICA NUEVA: ACTUALIZAR EL NOMBRE SI ES DIFERENTE ---
-        // Esto arregla el problema de que te salga el email en vez del nombre si el usuario ya existía.
         if (existingCustomer.Name != userName && !string.IsNullOrEmpty(userName))
         {
             existingCustomer.Name = userName;
@@ -81,7 +80,6 @@ public async Task<OrderModel.Response> AddOrder(OrderModel.Request request, stri
     // VALIDACIONES
     // -----------------------------------------------------------------------
 
-    // Comentamos la validación del ID (sigue comentada como debe ser)
     // await _extensions.ValidateIdCustomerAsync(modifiedRequest); 
 
     _logger.LogInformation("Iniciando creación de orden para cliente {CustomerId}", finalCustomerId);
@@ -122,7 +120,7 @@ public async Task<OrderModel.Response> AddOrder(OrderModel.Request request, stri
     var response = new OrderModel.Response(
         Id: order.Id,
         CustomerId: order.CustomerId ?? Guid.Empty,
-        // Usamos el nombre del objeto (que ya debería estar actualizado o creado bien)
+        // Usamos el nombre del objeto
         CustomerName: existingCustomer?.Name ?? userName, 
         ShippingAddress: order.ShippingAddress,
         BillingAddress: order.BillingAddress,

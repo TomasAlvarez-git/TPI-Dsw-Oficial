@@ -117,10 +117,10 @@ function ListOrdersPage() {
               value={searchTerm}
               onChange={(evt) => {
                 setSearchTerm(evt.target.value);
-                setPageNumber(1); // <--- AGREGA ESTO: Resetear a pág 1 al escribir
+                setPageNumber(1); 
               }}
               type="text"
-              placeholder='Buscar por SKU o Nombre'
+              placeholder='Buscar por ID o Nombre'
               className='w-full border border-gray-300 rounded-lg px-4 py-2 ...'
             />
             <button

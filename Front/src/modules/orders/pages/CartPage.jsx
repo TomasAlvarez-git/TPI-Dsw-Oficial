@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Button from '../../shared/components/Button';
 import { useCart } from '../context/CartContext';
 import Toast from '../../shared/components/Toast';
@@ -24,6 +24,9 @@ function CartPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shippingAddress, setShippingAddress] = useState('');
   const [billingAddress, setBillingAddress] = useState('');
+  
+  // Estado para controlar la compra pendiente tras loguearse
+  const [pendingPurchase, setPendingPurchase] = useState(false);
 
   const showToast = msg => setToast(msg);
 
@@ -31,23 +34,14 @@ function CartPage() {
     item.stockQuantity ?? item.stock ?? item.stockAvailable ?? item.currentStock ?? 0,
   );
 
-  // --- NUEVO: CALCULO DE TOTAL DE UNIDADES ---
-  // Sumamos la propiedad 'quantity' de cada item en el carrito
   const totalUnits = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   // --- LÓGICA DE COMPRA ---
-  const handleFinalizePurchase = async () => {
-    // 1. Validar Autenticación
-    if (!isAuthenticated) {
-      setShowLoginModal(true);
-
-      return;
-    }
-
-    // 2. Validar Inputs
+  const processOrder = useCallback(async () => {
+    // Validar Inputs
     if (!shippingAddress.trim() || !billingAddress.trim()) {
       showToast('Por favor, completa las direcciones de envío y facturación.');
-
+      setPendingPurchase(false);
       return;
     }
 
@@ -67,6 +61,7 @@ function CartPage() {
       await createOrder(orderData);
 
       showToast('¡Compra realizada con éxito!');
+      setPendingPurchase(false); 
 
       if (clearCart) clearCart();
 
@@ -76,6 +71,7 @@ function CartPage() {
 
     } catch (error) {
       console.error('Error al procesar compra:', error);
+      setPendingPurchase(false);
 
       if (error.response && error.response.data) {
         const serverError = error.response.data.message
@@ -89,7 +85,34 @@ function CartPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }, [shippingAddress, billingAddress, cartItems, clearCart, navigate]);
+
+  // --- MANEJADOR DEL CLICK DEL BOTÓN ---
+  const handleFinalizePurchase = () => {
+    // Validamos direcciones ANTES de pedir login
+    if (!shippingAddress.trim() || !billingAddress.trim()) {
+      showToast('Por favor, completa las direcciones de envío y facturación.');
+      return;
+    }
+
+    // Si NO está autenticado
+    if (!isAuthenticated) {
+      setPendingPurchase(true); // Marcamos intención de compra
+      setShowLoginModal(true);  // Abrimos modal
+      return;
+    }
+
+    // Si YA está autenticado
+    processOrder();
   };
+
+  // --- EFECTO: Detecta login exitoso y ejecuta compra pendiente ---
+  useEffect(() => {
+    if (isAuthenticated && pendingPurchase) {
+      processOrder();
+    }
+  }, [isAuthenticated, pendingPurchase, processOrder]);
+
 
   if (!cartItems || cartItems.length === 0) {
     return (
@@ -110,24 +133,34 @@ function CartPage() {
 
       <LoginModal
         isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
+        onClose={() => {
+          setShowLoginModal(false);
+          // Si cierra sin loguearse, cancelamos la compra pendiente
+          setPendingPurchase(false);
+        }}
         onSwitchToRegister={() => {
           setShowLoginModal(false);
           setShowRegisterModal(true);
         }}
-        onLoginSuccess={() => setShowLoginModal(false)}
+        onLoginSuccess={() => {
+          setShowLoginModal(false);
+          // El useEffect se encarga del resto
+        }}
       />
 
       <RegisterModal
         isOpen={showRegisterModal}
-        onClose={() => setShowRegisterModal(false)}
+        onClose={() => {
+            setShowRegisterModal(false);
+            setPendingPurchase(false);
+        }}
         onSwitchToLogin={() => {
           setShowRegisterModal(false);
           setShowLoginModal(true);
         }}
       />
 
-      {/* ITEMS DEL CARRITO */}
+      {/* ITEMS DEL CARRITO (DISEÑO ORIGINAL) */}
       <div className="w-full flex-1 flex flex-col gap-4">
         {cartItems.map(item => {
           const stock = getStockFromItem(item);
@@ -140,18 +173,11 @@ function CartPage() {
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{item.name}</h3>
 
-                {/* MODIFICADO: Layout vertical para coincidir con la imagen */}
                 <div className="text-gray-500 text-sm flex flex-col gap-1">
-
-                  {/* Cantidad seleccionada en texto */}
                   <span>Cantidad de productos: {item.quantity}</span>
-
-                  {/* Subtotal */}
                   <span>
                     Sub Total: <span className="font-medium text-gray-700">${(Number(item.price ?? 0) * item.quantity).toFixed(2)}</span>
                   </span>
-
-                  {/* Stock (información extra útil, un poco más pequeña) */}
                   <span className="text-xs text-gray-400 mt-1">Stock disponible: {stock}</span>
                 </div>
               </div>
@@ -176,10 +202,8 @@ function CartPage() {
                     onClick={() => {
                       if (item.quantity >= stock) {
                         showToast(`Solo hay ${stock} unidades disponibles`);
-
                         return;
                       }
-
                       updateQuantity(item.id, item.quantity + 1);
                     }}
                     disabled={item.quantity >= stock}
@@ -203,14 +227,13 @@ function CartPage() {
         })}
       </div>
 
-      {/* DETALLE DE PEDIDO (SUMMARY) */}
+      {/* DETALLE DE PEDIDO (DISEÑO ORIGINAL RESTAURADO) */}
       <div className="w-full lg:w-[380px] shrink-0">
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm sticky top-24">
 
           <div className="text-gray-700 text-base mb-4">
             <h2 className="text-xl font-bold text-gray-900 mb-6">Detalle de pedido</h2>
 
-            {/* MODIFICADO: Muestra el total de unidades calculado con reduce */}
             <div className="flex justify-between items-center mb-2">
               <span className="font-medium">Cantidad de productos en total:</span>
               <span>{totalUnits}</span>

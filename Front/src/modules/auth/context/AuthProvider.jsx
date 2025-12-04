@@ -21,7 +21,6 @@ function AuthProvider({ children }) {
       const { data, error } = await login(username, password);
 
       if (error) {
-        // El servicio devuelve { code: 123 }, buscamos el texto correspondiente
         const message = frontendErrorMessage[error.code] || 'Error desconocido al iniciar sesión';
 
         // Devolvemos el formato exacto que espera LoginForm

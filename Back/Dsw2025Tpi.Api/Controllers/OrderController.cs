@@ -49,8 +49,6 @@ public async Task<IActionResult> AddOrder([FromBody] OrderModel.Request request)
     // -------------------------------------------------------------
     // 2. OBTENER EL NOMBRE DE USUARIO (CORRECCIÓN CRÍTICA)
     // -------------------------------------------------------------
-    // Tu JwtTokenService guarda el usuario en "sub" (JwtRegisteredClaimNames.Sub)
-    // o en ClaimTypes.NameIdentifier. Buscamos ahí primero.
     
     var userName = User.FindFirst("sub")?.Value 
                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -60,8 +58,6 @@ public async Task<IActionResult> AddOrder([FromBody] OrderModel.Request request)
     // DEBUG: Muestra en la consola negra qué datos estamos recuperando
     Console.WriteLine($"DEBUG AUTH -> Email: {userEmail} | Username detectado: {userName}");
 
-    // Si por alguna razón sigue vacío, usamos el email para que no falle, 
-    // pero con el log de arriba sabremos por qué.
     if (string.IsNullOrEmpty(userName)) userName = userEmail;
 
     // -------------------------------------------------------------
@@ -73,7 +69,7 @@ public async Task<IActionResult> AddOrder([FromBody] OrderModel.Request request)
 }
 
 // Endpoint para obtener una lista paginada de órdenes
-[HttpGet] // <--- ¡ESTA LÍNEA ES OBLIGATORIA PARA QUE FUNCIONE EL LISTADO!
+[HttpGet] 
 [Authorize(Roles = "Admin, Customer")]
 public async Task<IActionResult> GetOrders(
    [FromQuery] OrderStatus? status,

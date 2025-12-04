@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Input from '../../shared/components/Input';
 import Button from '../../shared/components/Button';
 import useAuth from '../hook/useAuth';
-import { frontendErrorMessage } from '../helpers/backendError';
+import { frontendErrorMessage } from '../helpers/backendError'; 
 import { required } from '../../shared/validators/validate';
 
 function LoginForm({ onSuccess, onSwitchToRegister, className }) {
@@ -17,18 +17,33 @@ function LoginForm({ onSuccess, onSwitchToRegister, className }) {
   const onValid = async (formData) => {
     setErrorMessage('');
     try {
+      // 1. Intentamos loguear
       const { error } = await signin(formData.username, formData.password);
 
       if (error) {
         setErrorMessage(error.frontendErrorMessage || 'Error de credenciales');
-
         return;
       }
 
-      onSuccess ? onSuccess() : navigate('/admin/home');
+      // 2. Si hay una función onSuccess (ej. desde el Modal del carrito), la ejecutamos
+      if (onSuccess) {
+        onSuccess();
+        return;
+      }
+
+      // 3. LÓGICA DE REDIRECCIÓN BASADA EN ROL
+      // Recuperamos el rol recién guardado
+      const role = localStorage.getItem('role');
+
+      if (role === 'admin') {
+        navigate('/admin/home');
+      } else {
+        // Si es usuario normal, cliente, etc., lo mandamos al Home público
+        navigate('/');
+      }
+
     } catch (error) {
       const code = error?.response?.data?.code;
-
       setErrorMessage(code ? frontendErrorMessage[code] : 'Ocurrió un error inesperado');
     }
   };

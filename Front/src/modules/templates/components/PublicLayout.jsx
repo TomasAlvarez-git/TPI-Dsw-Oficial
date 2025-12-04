@@ -99,7 +99,7 @@ function PublicLayout() {
                 type="text"
                 value={search}
                 onChange={handleSearch}
-                placeholder="Search"
+                placeholder="Buscar"
                 className="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded-full pl-4 pr-10 py-2 shadow-sm"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">

@@ -1,6 +1,6 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './modules/auth/context/AuthProvider';
-import { CartProvider } from './modules/orders/context/CartContext'; // <--- 1. IMPORTAR EL CONTEXTO
+import { CartProvider } from './modules/orders/context/CartContext'; 
 
 import LoginPage from './modules/auth/pages/LoginPage';
 import Dashboard from './modules/templates/components/Dashboard';

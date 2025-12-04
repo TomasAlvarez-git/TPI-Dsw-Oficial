@@ -54,7 +54,6 @@ namespace Dsw2025Tpi.Api.Controllers
             var roles = await _userManager.GetRolesAsync(user);
             var userRole = roles.FirstOrDefault() ?? "Customer"; 
 
-            // CAMBIO: Pasamos el user.Email al servicio de tokens
             // El email viene de la base de datos (user.Email), no del request (por si el usuario loguea con Username)
             var token = _jwtTokenService.GenerateToken(request.Username, user.Email, userRole);
 
@@ -76,12 +75,11 @@ namespace Dsw2025Tpi.Api.Controllers
         if (existingUserByUsername != null)
             throw new BadRequestException("El nombre de usuario ya está en uso.");
 
-        // ✅ AGREGADO: asignar PhoneNumber
         var user = new IdentityUser
         {
             UserName = model.Username,
             Email = model.Email,
-            PhoneNumber = model.PhoneNumber   // ← ESTA ERA LA CLAVE
+            PhoneNumber = model.PhoneNumber  
         };
 
         var result = await _userManager.CreateAsync(user, model.Password);

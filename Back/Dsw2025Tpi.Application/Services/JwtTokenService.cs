@@ -21,7 +21,6 @@ namespace Dsw2025Tpi.Application.Services
             _logger = logger;
         }
 
-        // CAMBIO: Ahora recibimos también el email
         public string GenerateToken(string username, string email, string role)
         {
             _logger.LogInformation("Generando token JWT para el usuario: {Username}, Email: {Email}, Rol: {Role}", username, email, role);
@@ -38,13 +37,12 @@ namespace Dsw2025Tpi.Application.Services
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyText));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            // CAMBIO: Agregamos el Claim del Email
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim(ClaimTypes.Role, role),
-                new Claim(ClaimTypes.Email, email) // <--- ¡ESTA ES LA LÍNEA MÁGICA!
+                new Claim(ClaimTypes.Email, email)
             };
 
             double expireMinutes = 60;
