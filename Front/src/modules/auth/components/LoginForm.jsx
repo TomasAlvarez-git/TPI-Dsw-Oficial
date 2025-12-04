@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Input from '../../shared/components/Input';
 import Button from '../../shared/components/Button';
 import useAuth from '../hook/useAuth';
-import { frontendErrorMessage } from '../helpers/backendError'; 
+import { frontendErrorMessage } from '../helpers/backendError';
 import { required } from '../../shared/validators/validate';
 
 function LoginForm({ onSuccess, onSwitchToRegister, className }) {
@@ -22,12 +22,14 @@ function LoginForm({ onSuccess, onSwitchToRegister, className }) {
 
       if (error) {
         setErrorMessage(error.frontendErrorMessage || 'Error de credenciales');
+
         return;
       }
 
       // 2. Si hay una función onSuccess (ej. desde el Modal del carrito), la ejecutamos
       if (onSuccess) {
         onSuccess();
+
         return;
       }
 
@@ -44,6 +46,7 @@ function LoginForm({ onSuccess, onSwitchToRegister, className }) {
 
     } catch (error) {
       const code = error?.response?.data?.code;
+
       setErrorMessage(code ? frontendErrorMessage[code] : 'Ocurrió un error inesperado');
     }
   };

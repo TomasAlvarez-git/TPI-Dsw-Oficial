@@ -138,7 +138,7 @@ function CreateProductForm() {
 
           {errorBackendMessage && (
             <div className='mt-4 text-center sm:text-end'>
-               <span className='text-red-500 font-medium'>{errorBackendMessage}</span>
+              <span className='text-red-500 font-medium'>{errorBackendMessage}</span>
             </div>
           )}
         </form>

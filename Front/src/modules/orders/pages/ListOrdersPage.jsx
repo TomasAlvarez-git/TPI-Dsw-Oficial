@@ -117,7 +117,7 @@ function ListOrdersPage() {
               value={searchTerm}
               onChange={(evt) => {
                 setSearchTerm(evt.target.value);
-                setPageNumber(1); 
+                setPageNumber(1);
               }}
               type="text"
               placeholder='Buscar por ID o Nombre'

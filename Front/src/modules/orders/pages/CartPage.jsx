@@ -24,7 +24,7 @@ function CartPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shippingAddress, setShippingAddress] = useState('');
   const [billingAddress, setBillingAddress] = useState('');
-  
+
   // Estado para controlar la compra pendiente tras loguearse
   const [pendingPurchase, setPendingPurchase] = useState(false);
 
@@ -42,6 +42,7 @@ function CartPage() {
     if (!shippingAddress.trim() || !billingAddress.trim()) {
       showToast('Por favor, completa las direcciones de envío y facturación.');
       setPendingPurchase(false);
+
       return;
     }
 
@@ -61,7 +62,7 @@ function CartPage() {
       await createOrder(orderData);
 
       showToast('¡Compra realizada con éxito!');
-      setPendingPurchase(false); 
+      setPendingPurchase(false);
 
       if (clearCart) clearCart();
 
@@ -92,6 +93,7 @@ function CartPage() {
     // Validamos direcciones ANTES de pedir login
     if (!shippingAddress.trim() || !billingAddress.trim()) {
       showToast('Por favor, completa las direcciones de envío y facturación.');
+
       return;
     }
 
@@ -99,6 +101,7 @@ function CartPage() {
     if (!isAuthenticated) {
       setPendingPurchase(true); // Marcamos intención de compra
       setShowLoginModal(true);  // Abrimos modal
+
       return;
     }
 
@@ -112,7 +115,6 @@ function CartPage() {
       processOrder();
     }
   }, [isAuthenticated, pendingPurchase, processOrder]);
-
 
   if (!cartItems || cartItems.length === 0) {
     return (
@@ -151,8 +153,8 @@ function CartPage() {
       <RegisterModal
         isOpen={showRegisterModal}
         onClose={() => {
-            setShowRegisterModal(false);
-            setPendingPurchase(false);
+          setShowRegisterModal(false);
+          setPendingPurchase(false);
         }}
         onSwitchToLogin={() => {
           setShowRegisterModal(false);
@@ -202,8 +204,10 @@ function CartPage() {
                     onClick={() => {
                       if (item.quantity >= stock) {
                         showToast(`Solo hay ${stock} unidades disponibles`);
+
                         return;
                       }
+
                       updateQuantity(item.id, item.quantity + 1);
                     }}
                     disabled={item.quantity >= stock}
